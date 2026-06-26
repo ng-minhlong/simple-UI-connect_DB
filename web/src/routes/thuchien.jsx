@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Factory, Users, Clock, TrendingUp, TrendingDown } from 'lucide-react';
 import PickupHelperWidget from './PickupHelperWidget';
 
 const stages = [{ code: 'CAT', name: 'Cắt' }, { code: 'MAY', name: 'May' }, { code: 'HOAN_THIEN', name: 'Hoàn thiện' }];
@@ -11,12 +12,10 @@ export default function ActualPage() {
     const [rows, setRows] = useState([]);
     const [refresh, setRefresh] = useState(0);
 
-    // 1. Tự động lấy khung giờ riêng biệt của công đoạn tổ đang làm
     useEffect(() => {
         axios.get(`http://localhost:5000/api/timeslots/${filter.stage}`).then(res => setSlots(res.data));
     }, [filter.stage]);
 
-    // 2. Trộn dữ liệu Kế hoạch (lấy từ trang 1) và Thực tế để hiển thị đối chiếu cho tổ trưởng thấy
     useEffect(() => {
         if (slots.length === 0) return;
         axios.get(`http://localhost:5000/api/production?date=${filter.date}&productCode=${filter.product}&stageCode=${filter.stage}`)
@@ -35,7 +34,6 @@ export default function ActualPage() {
             });
     }, [filter, slots, refresh]);
 
-    // 3. Hàm ghi nhận sản lượng thực tế sản xuất được dưới chuyền
     const handleActualChange = (slotCode, value) => {
         const intValue = parseInt(value) || 0;
         setRows(prev => prev.map(r => r.slotCode === slotCode ? { ...r, actualQty: intValue } : r));
@@ -43,63 +41,93 @@ export default function ActualPage() {
         axios.post('http://localhost:5000/api/production/save', {
             date: filter.date, productCode: filter.product, stageCode: filter.stage,
             lineCode: filter.line, slotCode: slotCode, planQty: null, actualQty: intValue, user: 'TO_TRUONG'
-        }).then(() => setRefresh(p => p + 1)); // Cập nhật lại Widget tiến độ tổng ngay lập tức
+        }).then(() => setRefresh(p => p + 1));
     };
 
     return (
-        <div style={{ padding: '15px', maxWidth: '600px', margin: '0 auto', fontFamily: 'Arial, sans-serif' }}>
+        <div className="p-8">
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold mb-2">Nhập Sản Lượng Thực Tế</h1>
+                <p className="text-gray-600">Dành cho Chuyền/Tổ nhập sản lượng thực tế sản xuất</p>
+            </div>
+
             <PickupHelperWidget productCode={filter.product} stageCode={filter.stage} refreshTrigger={refresh} />
             
-            <h3 style={{ color: '#28a745', borderBottom: '2px solid #28a745', paddingBottom: '6px', marginTop: 0 }}>
-                📱 TRANG NHẬP SẢN LƯỢNG THỰC TẾ (DÀNH CHO CHUYỀN/TỔ)
-            </h3>
-            
-            {/* Bộ chọn Chuyền/Bộ phận làm việc */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                <div>
-                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Bộ phận:</label>
-                    <select value={filter.stage} onChange={e => { const st = e.target.value; setFilter({ ...filter, stage: st, line: linesMap[st][0] }); }} style={{ padding: '8px', width: '100%', marginTop: '4px' }}>
-                        {stages.map(st => <option key={st.code} value={st.code}>{st.name}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Tên Chuyền/Tổ:</label>
-                    <select value={filter.line} onChange={e => setFilter({ ...filter, line: e.target.value })} style={{ padding: '8px', width: '100%', marginTop: '4px' }}>
-                        {(linesMap[filter.stage] || []).map(li => <option key={li} value={li}>{li.replace('LINE_0', 'Chuyền ').replace('TO_', 'Tổ ')}</option>)}
-                    </select>
+            <div className="bg-white border border-black rounded-lg p-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                            <Factory className="w-4 h-4" />
+                            Bộ phận
+                        </label>
+                        <select 
+                            value={filter.stage} 
+                            onChange={e => { const st = e.target.value; setFilter({ ...filter, stage: st, line: linesMap[st][0] }); }}
+                            className="w-full px-4 py-2 border border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                        >
+                            {stages.map(st => <option key={st.code} value={st.code}>{st.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            Tên Chuyền/Tổ
+                        </label>
+                        <select 
+                            value={filter.line} 
+                            onChange={e => setFilter({ ...filter, line: e.target.value })}
+                            className="w-full px-4 py-2 border border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+                        >
+                            {(linesMap[filter.stage] || []).map(li => <option key={li} value={li}>{li.replace('LINE_0', 'Chuyền ').replace('TO_', 'Tổ ')}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            {/* Danh sách nhập liệu dạng thẻ (Card) tương thích điện thoại */}
-            {rows.map(row => {
-                const diff = row.actualQty - row.planQty;
-                return (
-                    <div key={row.slotCode} style={{ border: '1px solid #ccc', borderRadius: '6px', padding: '15px', marginBottom: '12px', backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: '10px', fontSize: '15px' }}>
-                            <span>⏰ Khung giờ: {row.slotName}</span>
-                            <span style={{ color: '#555' }}>Chỉ tiêu KH giao: <b style={{ color: '#0056b3' }}>{row.planQty}</b></span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                            <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '3px' }}>Sản lượng thực tế đếm được:</label>
-                                <input 
-                                    type="number" 
-                                    placeholder="Gõ số lượng..." 
-                                    value={row.actualQty || ''} 
-                                    onChange={e => handleActualChange(row.slotCode, e.target.value)} 
-                                    style={{ width: '90%', padding: '10px', fontSize: '18px', fontWeight: 'bold', textAlign: 'center', borderRadius: '4px', border: '1px solid #bbb' }} 
-                                />
+            <div className="space-y-4">
+                {rows.map(row => {
+                    const diff = row.actualQty - row.planQty;
+                    const isPositive = diff >= 0;
+                    return (
+                        <div 
+                            key={row.slotCode} 
+                            className="bg-white border border-black rounded-lg p-6 hover:shadow-lg transition-shadow"
+                        >
+                            <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+                                <div className="flex items-center gap-3">
+                                    <Clock className="w-6 h-6" />
+                                    <span className="text-lg font-semibold">{row.slotName}</span>
+                                </div>
+                                <div className="bg-gray-100 px-4 py-2 rounded-lg font-semibold">
+                                    Chỉ tiêu KH: {row.planQty}
+                                </div>
                             </div>
-                            <div style={{ textAlign: 'right', minWidth: '80px' }}>
-                                <span style={{ fontSize: '11px', color: '#666', display: 'block' }}>Chênh lệch</span>
-                                <strong style={{ color: diff >= 0 ? 'green' : 'red', fontSize: '20px' }}>
-                                    {diff >= 0 ? `+${diff}` : diff}
-                                </strong>
+                            <div className="flex items-center gap-4 flex-wrap">
+                                <div className="flex-1 min-w-[200px]">
+                                    <label className="block text-sm font-medium mb-2">Sản lượng thực tế</label>
+                                    <input 
+                                        type="number" 
+                                        placeholder="Gõ số lượng..." 
+                                        value={row.actualQty || ''} 
+                                        onChange={e => handleActualChange(row.slotCode, e.target.value)} 
+                                        className="w-full px-4 py-3 border border-black rounded-lg text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-black"
+                                    />
+                                </div>
+                                <div className={`
+                                    text-center min-w-[120px] px-6 py-4 rounded-lg border-2 font-bold
+                                    ${isPositive ? 'bg-white border-black text-black' : 'bg-black border-black text-white'}
+                                `}>
+                                    <div className="text-xs mb-1">Chênh lệch</div>
+                                    <div className="text-3xl flex items-center justify-center gap-2">
+                                        {isPositive ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
+                                        {diff >= 0 ? `+${diff}` : diff}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
         </div>
     );
 }

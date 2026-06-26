@@ -1,0 +1,82 @@
+generator client {
+    provider = "prisma-client-js"
+  }
+  
+  datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+  }
+  
+  model Product {
+    ProductCode         String   @id @db.VarChar(50)
+    TotalQuantity       Int
+    CustomerPickupDate  DateTime
+  
+    ProductionData      ProductionData[]
+  }
+  
+  model Stage {
+    StageCode  String @id @db.VarChar(50)
+    StageName  String @db.VarChar(100)
+  
+    Lines      Line[]
+    ProductionData ProductionData[]
+  }
+  
+  model Line {
+    LineCode   String @id @db.VarChar(50)
+    StageCode  String @db.VarChar(50)
+    LineName   String @db.VarChar(100)
+  
+    stage      Stage @relation(fields: [StageCode], references: [StageCode])
+  
+    lineTimeSlots LineTimeSlot[]
+    ProductionData ProductionData[]
+  }
+  
+  model TimeSlot {
+    SlotCode  String @id @db.VarChar(50)
+    SlotName  String @db.VarChar(50)
+  
+    lineTimeSlots LineTimeSlot[]
+    ProductionData ProductionData[]
+  }
+  
+  model LineTimeSlot {
+    LineCode  String @db.VarChar(50)
+    SlotCode  String @db.VarChar(50)
+    SortOrder Int @default(1)
+  
+    line      Line     @relation(fields: [LineCode], references: [LineCode])
+    timeSlot  TimeSlot @relation(fields: [SlotCode], references: [SlotCode])
+  
+    productionData ProductionData[]
+  
+    @@id([LineCode, SlotCode])
+  }
+  
+  model ProductionData {
+    Id              Int      @id @default(autoincrement())
+    ProductionDate  DateTime
+  
+    ProductCode     String @db.VarChar(50)
+    StageCode       String @db.VarChar(50)
+    LineCode        String @db.VarChar(50)
+    SlotCode        String @db.VarChar(50)
+  
+    PlanQuantity    Int @default(0)
+    ActualQuantity  Int @default(0)
+  
+    UpdatedBy       String? @db.VarChar(50)
+    UpdatedAt       DateTime @default(now())
+  
+    product Product @relation(fields: [ProductCode], references: [ProductCode])
+    stage   Stage   @relation(fields: [StageCode], references: [StageCode])
+  
+    lineTimeSlot LineTimeSlot @relation(
+      fields: [LineCode, SlotCode],
+      references: [LineCode, SlotCode]
+    )
+  
+    @@unique([ProductionDate, ProductCode, StageCode, LineCode, SlotCode])
+  }
